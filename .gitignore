@@ -1,50 +1,48 @@
-# Python
+# Python / Backend
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
 venv/
-.venv/
 env/
+ENV/
 .env
 .env.local
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Test
+.env.*.local
 .pytest_cache/
 .coverage
 htmlcov/
 .tox/
-
-# Build
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
 dist/
 build/
-*.egg-info/
 
 # IDE
-.vscode/
 .idea/
+.vscode/
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
 Thumbs.db
 
-# UV
-uv.lock
+# Logs
+*.log
+logs/
 
-# Flutter
-.dart_tool/
-.packages
-build/
-*.dart_tool/
+# Database
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
 
-# Local config
-*.local.yaml
-*.local.yml
+# Local overrides
+local.properties
+
+# Frontend has its own git repository
+varys-app/

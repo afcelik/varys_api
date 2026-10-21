@@ -27,6 +27,13 @@ Single-user application with a backend running on a VPS and a Flutter client (pr
 ## Github
 - **Production branch**: main
 
-## Github Repos
+## Github Remote Repos
 - **Backend** (varys-api): https://github.com/afcelik/varys_api.git
 - **Frontend** (varys-app): https://github.com/afcelik/varys.git
+
+## Git Repository Structure
+This project uses **two separate Git repositories**:
+- **Root folder** (`/Users/afcelik/Projects/varys/`) → Backend repository (connected to `varys_api.git`)
+- **`varys-app/` subfolder** → Frontend repository (connected to `varys.git`, initialized separately)
+
+The `varys-app/` folder is ignored in the root `.gitignore` since it has its own independent git history and remote.
