@@ -29,8 +29,8 @@ class Settings(BaseSettings):
     # CORS
     ALLOWED_ORIGINS: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 
-    # Database (placeholder for future)
-    DATABASE_URL: str | None = None
+    # Database
+    DATABASE_URL: str = "sqlite:///./varys.db"
 
     # AI Provider (NVIDIA)
     NVIDIA_API_KEY: str | None = None
