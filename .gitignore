@@ -1,25 +1,30 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Virtual environment
-.venv/
+*.so
+.Python
 venv/
+.venv/
 env/
-
-# Environment files
 .env
 .env.local
 
 # Database
-varys.db
-varys.db-*
+*.db
 *.sqlite
 *.sqlite3
 
-# Alembic
-alembic/versions/*.pyc
+# Test
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Build
+dist/
+build/
+*.egg-info/
 
 # IDE
 .vscode/
@@ -31,15 +36,15 @@ alembic/versions/*.pyc
 .DS_Store
 Thumbs.db
 
-# Test coverage
-.coverage
-htmlcov/
-.pytest_cache/
-
-# Distribution
-dist/
-build/
-*.egg-info/
-
 # UV
 uv.lock
+
+# Flutter
+.dart_tool/
+.packages
+build/
+*.dart_tool/
+
+# Local config
+*.local.yaml
+*.local.yml
