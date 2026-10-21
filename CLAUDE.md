@@ -36,4 +36,11 @@ This project uses **two separate Git repositories**:
 - **Root folder** (`/Users/afcelik/Projects/varys/`) → Backend repository (connected to `varys_api.git`)
 - **`varys-app/` subfolder** → Frontend repository (connected to `varys.git`, initialized separately)
 
-The `varys-app/` folder is ignored in the root `.gitignore` since it has its own independent git history and remote.
+Each repository has its own `.git` directory and remote. **To push to a remote, change to the corresponding directory first:**
+```bash
+# Push backend
+cd /Users/afcelik/Projects/varys && git push origin main
+
+# Push frontend
+cd /Users/afcelik/Projects/varys/varys-app && git push origin main
+```
