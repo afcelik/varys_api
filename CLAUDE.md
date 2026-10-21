@@ -21,6 +21,9 @@ Single-user application with a backend running on a VPS and a Flutter client (pr
 - Do not add any features that were not requested
 - At the end of each step, provide instructions on how to test the changes
 
+## Github
+- **Production branch**: main
+
 ## Github Repos
 - **Backend** (varys-api): https://github.com/afcelik/varys_api.git
 - **Frontend** (varys-app): https://github.com/afcelik/varys.git
