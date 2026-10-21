@@ -33,14 +33,15 @@ Single-user application with a backend running on a VPS and a Flutter client (pr
 
 ## Git Repository Structure
 This project uses **two separate Git repositories**:
-- **Root folder** (`/Users/afcelik/Projects/varys/`) → Backend repository (connected to `varys_api.git`)
+- **Root folder** (`/Users/afcelik/Projects/varys/`) 
 - **`varys-app/` subfolder** → Frontend repository (connected to `varys.git`, initialized separately)
+- **`varys-api/` subfolder** → Backend repository (connected to `varys_api.git`, initialized separately)
 
 Each repository has its own `.git` directory and remote. **To push to a remote, change to the corresponding directory first:**
 ```bash
 # Push backend
-cd /Users/afcelik/Projects/varys && git push origin main
+cd /Users/afcelik/Projects/varys/varys-api && git add . && git commit -m "[Write the changes here]" && git push origin main
 
 # Push frontend
-cd /Users/afcelik/Projects/varys/varys-app && git push origin main
+cd /Users/afcelik/Projects/varys/varys-app && git add . && git commit -m "[Write the changes here]" && git push origin main
 ```
