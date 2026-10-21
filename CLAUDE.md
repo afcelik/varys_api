@@ -3,6 +3,9 @@
 ## Project Definition
 Single-user application with a backend running on a VPS and a Flutter client (prioritizing Android, Linux, and macOS).
 
+- **Backend Folder** : varys/varys-api
+- **Frontend Folder** : varys/varys-app
+
 ## Technical Decisions
 - **Backend**: FastAPI + SQLAlchemy 2 + Alembic + SQLite (WAL mode)
 - **Frontend**: Flutter + Riverpod + GoRouter + feature-based modular architecture

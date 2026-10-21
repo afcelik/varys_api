@@ -25,6 +25,7 @@ class Settings(BaseSettings):
 
     # Security
     SECRET_KEY: str = Field(..., min_length=32)
+    API_TOKEN: str = Field(..., min_length=16)
 
     # CORS
     ALLOWED_ORIGINS: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])

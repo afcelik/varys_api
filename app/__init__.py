@@ -1,1 +1,0 @@
-"""Varys API application package."""

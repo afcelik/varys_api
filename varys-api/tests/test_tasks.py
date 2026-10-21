@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.main import create_app
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.base import Base
 from app.models.task import Task, TaskStatus
@@ -58,11 +59,15 @@ def db_session() -> Session:
 
 @pytest.fixture(scope="function")
 async def client(db_session: Session) -> AsyncClient:
-    """Create an async test client with overridden database."""
+    """Create an async test client with overridden database and auth headers."""
     app = create_app()
     app.dependency_overrides[get_db] = lambda: db_session
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {settings.API_TOKEN}"},
+    ) as ac:
         yield ac
     app.dependency_overrides.clear()
 

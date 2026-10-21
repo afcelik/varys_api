@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.health import router as health_router
 from app.api.tasks import router as tasks_router
+from app.core.auth import verify_token
 from app.core.config import settings
 from app.core.database import get_db, init_db
 
@@ -39,10 +40,10 @@ def create_app() -> FastAPI:
 
     # Include routers
     app.include_router(health_router)
-    app.include_router(tasks_router)
+    app.include_router(tasks_router, dependencies=[Depends(verify_token)])
 
     # Dependency for database session
-    @app.get("/db-test", include_in_schema=False)
+    @app.get("/db-test", include_in_schema=False, dependencies=[Depends(verify_token)])
     def test_db(db: Session = Depends(get_db)):
         """Test database connection."""
         return {"status": "connected"}
