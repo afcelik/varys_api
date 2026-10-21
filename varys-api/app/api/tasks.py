@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.repositories.task import TaskRepository
-from app.schemas.task import TaskCreate, TaskRead, TaskUpdate
+from app.schemas.task import TaskCreate, TaskRead, TaskUpdate, TaskEventRead
 from app.services.task import TaskNotFoundError, TaskService
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -86,8 +86,24 @@ def delete_task(
     task_id: int,
     service: TaskService = Depends(get_task_service),
 ) -> None:
-    """Delete a task by its ID."""
+    """Delete a task by its ID (soft delete)."""
     try:
         service.delete_task(task_id)
+    except TaskNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.get(
+    "/{task_id}/events",
+    response_model=list[TaskEventRead],
+    summary="Get task event log",
+)
+def get_task_events(
+    task_id: int,
+    service: TaskService = Depends(get_task_service),
+) -> list[TaskEventRead]:
+    """Get the event log for a task."""
+    try:
+        return service.get_task_events(task_id)
     except TaskNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

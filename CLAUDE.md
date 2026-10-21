@@ -20,3 +20,7 @@ Single-user application with a backend running on a VPS and a Flutter client (pr
 - Modify no more than 5–6 files per step
 - Do not add any features that were not requested
 - At the end of each step, provide instructions on how to test the changes
+
+## Github Repos
+- **Backend** (varys-api): https://github.com/afcelik/varys_api.git
+- **Frontend** (varys-app): https://github.com/afcelik/varys.git
