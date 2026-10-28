@@ -1,3 +1,4 @@
+#auth.py
 """Authentication dependencies."""
 
 from fastapi import Depends, HTTPException, Security, status

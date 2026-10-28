@@ -18,7 +18,9 @@ async def client() -> AsyncClient:
 @pytest.fixture
 def auth_headers() -> dict[str, str]:
     """Authentication headers for protected endpoints."""
-    return {"Authorization": "Bearer dev-api-token-change-in-production"}
+    # Use the actual API_TOKEN from settings
+    from app.core.config import settings
+    return {"Authorization": f"Bearer {settings.API_TOKEN}"}
 
 
 @pytest.mark.asyncio
