@@ -32,7 +32,11 @@ class Settings(BaseSettings):
 
     # Security
     SECRET_KEY: str = Field(..., min_length=32)
-    API_TOKEN: str = Field(..., min_length=16)
+
+    # Authentication
+    PASSWORD_HASH: str = Field(..., min_length=1)
+    JWT_SECRET: str = Field(..., min_length=32)
+    JWT_EXPIRE_DAYS: int = 30
 
     # CORS
     ALLOWED_ORIGINS: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])

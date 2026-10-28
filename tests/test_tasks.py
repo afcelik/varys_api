@@ -5,6 +5,8 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
+import jwt
+from datetime import UTC, datetime, timedelta
 
 from app.main import create_app
 from app.core.config import settings
@@ -45,6 +47,20 @@ def override_get_db() -> Session:
         db.close()
 
 
+def create_test_token(expired: bool = False) -> str:
+    """Create a test JWT token.
+
+    Args:
+        expired: If True, create an expired token.
+
+    Returns:
+        JWT token string.
+    """
+    expire = datetime.now(UTC) + (timedelta(seconds=-10) if expired else timedelta(days=1))
+    payload = {"sub": "user", "exp": expire, "iat": datetime.now(UTC)}
+    return jwt.encode(payload, settings.JWT_SECRET, algorithm="HS256")
+
+
 @pytest.fixture(scope="function")
 def db_session() -> Session:
     """Create a fresh database session for each test."""
@@ -63,10 +79,25 @@ async def client(db_session: Session) -> AsyncClient:
     app = create_app()
     app.dependency_overrides[get_db] = lambda: db_session
     transport = ASGITransport(app=app)
+    token = create_test_token()
     async with AsyncClient(
         transport=transport,
         base_url="http://test",
-        headers={"Authorization": f"Bearer {settings.API_TOKEN}"},
+        headers={"Authorization": f"Bearer {token}"},
+    ) as ac:
+        yield ac
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="function")
+async def client_no_auth(db_session: Session) -> AsyncClient:
+    """Create an async test client without authentication headers."""
+    app = create_app()
+    app.dependency_overrides[get_db] = lambda: db_session
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
     ) as ac:
         yield ac
     app.dependency_overrides.clear()
