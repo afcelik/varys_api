@@ -80,6 +80,3 @@ cd /Users/afcelik/Projects/varys/varys-app && git add . && git commit -m "[Write
   - This logic is centralized in a shared widget (`BackArrow` in `shared/widgets/back_arrow.dart`).
 - The login screen (`/login`) remains outside the shell.
 - **Adding a new feature** implies creating a new full-screen page plus a corresponding widget on the Home Screen; the menu (the 3 tabs) remains unchanged.
-
-## Progress
-- **Step 13: Simplified Navigation** — Reduced shell tabs to 3 (Home, Planning, Varys). Moved Notes, Inbox, Settings to full-screen pages outside shell with push navigation and shared back arrow widget.

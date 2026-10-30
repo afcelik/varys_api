@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from app.api.auth import router as auth_router
+from app.api.daily_plans import router as daily_plans_router
 from app.api.health import router as health_router
 from app.api.tasks import router as tasks_router
 from app.core.auth import verify_token
@@ -43,6 +44,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(auth_router)  # No auth required for login
     app.include_router(tasks_router, dependencies=[Depends(verify_token)])
+    app.include_router(daily_plans_router, dependencies=[Depends(verify_token)])
 
     # Dependency for database session
     @app.get("/db-test", include_in_schema=False, dependencies=[Depends(verify_token)])
