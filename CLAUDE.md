@@ -29,6 +29,7 @@ Single-user application with a backend running on a VPS and a Flutter client (pr
 - **Token expiration**: 30 days (configurable via `JWT_EXPIRE_DAYS`)
 - **Rate limiting**: 5 failed attempts per IP per 15 minutes → 429 Too Many Requests
 - **On 401 response**: Client clears JWT and redirects to `/login`
+- **Session expiration (401)** is managed from a single point (`AuthNotifier.handleSessionExpired`); this flow has testing.
 
 ## Authentication (Detailed)
 - **Single-user setup**: The password (as an Argon2 hash) exists only on the server side (`PASSWORD_HASH` in backend `.env`).
