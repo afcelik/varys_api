@@ -696,6 +696,76 @@ class TestDailyPlansAPI:
         assert data["say_no_text"] == "Original"  # preserved
 
     @pytest.mark.asyncio
+    async def test_upsert_daily_plan_clear_side_focus(self, client: AsyncClient, db_session: Session) -> None:
+        """Test PUT with explicit null clears side focus, keeps main focus and say-no."""
+        from app.repositories.daily_plan import DailyPlanRepository
+        from app.repositories.task import TaskRepository
+        from app.schemas.task import TaskCreate
+
+        task_repo = TaskRepository(db_session)
+        task1 = task_repo.create(TaskCreate(title="Task 1"))
+        task2 = task_repo.create(TaskCreate(title="Task 2"))
+
+        DailyPlanRepository(db_session).upsert(
+            plan_date=date(2026, 1, 15),
+            main_focus_task_id=task1.id,
+            side_focus_task_id=task2.id,
+            say_no_text="Original",
+        )
+
+        response = await client.put(
+            "/daily-plans/2026-01-15",
+            json={"side_focus_task_id": None},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["side_focus_task_id"] is None
+        assert data["side_focus"] is None
+        assert data["main_focus_task_id"] == task1.id  # preserved
+        assert data["main_focus"]["id"] == task1.id
+        assert data["say_no_text"] == "Original"  # preserved
+
+        # Persisted: a fresh GET sees the cleared side focus
+        get_data = (await client.get("/daily-plans/2026-01-15")).json()
+        assert get_data["side_focus_task_id"] is None
+        assert get_data["main_focus_task_id"] == task1.id
+
+    @pytest.mark.asyncio
+    async def test_upsert_daily_plan_clear_say_no_text(self, client: AsyncClient, db_session: Session) -> None:
+        """Test PUT with explicit null clears say_no_text, keeps both focuses."""
+        from app.repositories.daily_plan import DailyPlanRepository
+        from app.repositories.task import TaskRepository
+        from app.schemas.task import TaskCreate
+
+        task_repo = TaskRepository(db_session)
+        task1 = task_repo.create(TaskCreate(title="Task 1"))
+        task2 = task_repo.create(TaskCreate(title="Task 2"))
+
+        DailyPlanRepository(db_session).upsert(
+            plan_date=date(2026, 1, 15),
+            main_focus_task_id=task1.id,
+            side_focus_task_id=task2.id,
+            say_no_text="Original",
+        )
+
+        response = await client.put(
+            "/daily-plans/2026-01-15",
+            json={"say_no_text": None},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["say_no_text"] is None
+        assert data["main_focus_task_id"] == task1.id  # preserved
+        assert data["side_focus_task_id"] == task2.id  # preserved
+
+        get_data = (await client.get("/daily-plans/2026-01-15")).json()
+        assert get_data["say_no_text"] is None
+        assert get_data["main_focus_task_id"] == task1.id
+        assert get_data["side_focus_task_id"] == task2.id
+
+    @pytest.mark.asyncio
     async def test_upsert_same_focus_returns_422(self, client: AsyncClient, db_session: Session) -> None:
         """Test PUT with same task as both focuses returns 422."""
         from app.repositories.task import TaskRepository
