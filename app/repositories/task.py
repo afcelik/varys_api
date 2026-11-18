@@ -48,17 +48,11 @@ class TaskRepository:
         return list(self.db.scalars(stmt).all())
 
     def update(self, task: Task, task_update: TaskUpdate) -> Task:
-        """Update an existing task."""
-        if task_update.title is not None:
-            task.title = task_update.title
-        if task_update.description is not None:
-            task.description = task_update.description
-        if task_update.status is not None:
-            task.status = TaskStatus(task_update.status)
-        if task_update.due_date is not None:
-            task.due_date = task_update.due_date
-        if task_update.planned_date is not None:
-            task.planned_date = task_update.planned_date
+        """Apply only the fields the client sent; explicit null clears nullable fields."""
+        for name, value in task_update.changes().items():
+            if name == "status":
+                value = TaskStatus(value)
+            setattr(task, name, value)
         self.db.commit()
         self.db.refresh(task)
         return task

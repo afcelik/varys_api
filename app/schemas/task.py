@@ -1,9 +1,9 @@
 """Pydantic schemas for Task API."""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.task import TaskStatus, TaskEventType
 
@@ -35,7 +35,15 @@ class TaskCreate(TaskBase):
 
 
 class TaskUpdate(BaseModel):
-    """Schema for updating an existing task (all fields optional)."""
+    """Partial update.
+
+    Field status is explicit via ``model_fields_set``:
+    - not sent  -> unchanged
+    - sent null -> cleared (description/due_date/planned_date; title/status -> 422)
+    - sent value -> set
+    """
+
+    NON_NULLABLE: ClassVar[tuple[str, ...]] = ("title", "status")
 
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=2000)
@@ -52,6 +60,18 @@ class TaskUpdate(BaseModel):
             if v not in valid_statuses:
                 raise ValueError(f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
         return v
+
+    @model_validator(mode="after")
+    def _reject_null_for_required(self) -> "TaskUpdate":
+        for name in self.NON_NULLABLE:
+            if name in self.model_fields_set and getattr(self, name) is None:
+                raise ValueError(f"{name} cannot be null")
+        return self
+
+    def changes(self) -> dict[str, Any]:
+        """Only the fields the client actually sent (including explicit nulls)."""
+        sent = self.model_fields_set
+        return {name: getattr(self, name) for name in type(self).model_fields if name in sent}
 
 
 class TaskRead(TaskBase):

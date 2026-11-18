@@ -650,3 +650,221 @@ class TestTasksAPI:
         data = response.json()
         assert len(data) == 1
         assert data[0]["title"] == "Task 1"
+
+# PATCH partial-update semantics: not sent -> unchanged, null -> cleared, value -> set.
+DAY = "2026-12-15T00:00:00"
+OTHER_DAY = "2026-12-20T00:00:00"
+DUE = "2026-12-31T00:00:00"
+
+
+async def _create_full_task(client: AsyncClient) -> dict:
+    response = await client.post(
+        "/tasks",
+        json={
+            "title": "Full",
+            "description": "Desc",
+            "status": "in_progress",
+            "due_date": DUE,
+            "planned_date": DAY,
+        },
+    )
+    assert response.status_code == 201
+    return response.json()
+
+
+async def _events(client: AsyncClient, task_id: int) -> list[dict]:
+    response = await client.get(f"/tasks/{task_id}/events")
+    assert response.status_code == 200
+    return response.json()
+
+
+class TestTaskPatchClearing:
+    """PATCH /tasks/{id} with explicit nulls and real-change events."""
+
+    @pytest.mark.asyncio
+    async def test_null_planned_date_clears_and_keeps_others(self, client: AsyncClient) -> None:
+        task = await _create_full_task(client)
+
+        response = await client.patch(f"/tasks/{task['id']}", json={"planned_date": None})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["planned_date"] is None
+        assert data["title"] == "Full"
+        assert data["description"] == "Desc"
+        assert data["status"] == "in_progress"
+        assert data["due_date"] == DUE
+        persisted = (await client.get(f"/tasks/{task['id']}")).json()
+        assert persisted["planned_date"] is None
+
+    @pytest.mark.asyncio
+    async def test_null_due_date_clears(self, client: AsyncClient) -> None:
+        task = await _create_full_task(client)
+
+        response = await client.patch(f"/tasks/{task['id']}", json={"due_date": None})
+
+        assert response.status_code == 200
+        assert response.json()["due_date"] is None
+        assert response.json()["planned_date"] == DAY
+        assert (await client.get(f"/tasks/{task['id']}")).json()["due_date"] is None
+
+    @pytest.mark.asyncio
+    async def test_null_description_clears(self, client: AsyncClient) -> None:
+        task = await _create_full_task(client)
+
+        response = await client.patch(f"/tasks/{task['id']}", json={"description": None})
+
+        assert response.status_code == 200
+        assert response.json()["description"] is None
+        assert (await client.get(f"/tasks/{task['id']}")).json()["description"] is None
+
+    @pytest.mark.asyncio
+    async def test_empty_description_is_kept_as_empty_string(self, client: AsyncClient) -> None:
+        task = await _create_full_task(client)
+
+        response = await client.patch(f"/tasks/{task['id']}", json={"description": ""})
+
+        assert response.status_code == 200
+        assert response.json()["description"] == ""
+        assert (await client.get(f"/tasks/{task['id']}")).json()["description"] == ""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("field", ["title", "status"])
+    async def test_null_for_required_field_is_422(self, client: AsyncClient, field: str) -> None:
+        task = await _create_full_task(client)
+
+        response = await client.patch(f"/tasks/{task['id']}", json={field: None})
+
+        assert response.status_code == 422
+        assert f"{field} cannot be null" in response.text
+        persisted = (await client.get(f"/tasks/{task['id']}")).json()
+        assert persisted["title"] == "Full"
+        assert persisted["status"] == "in_progress"
+        assert len(await _events(client, task["id"])) == 1
+
+    @pytest.mark.asyncio
+    async def test_unsent_fields_are_preserved(self, client: AsyncClient) -> None:
+        task = await _create_full_task(client)
+
+        response = await client.patch(f"/tasks/{task['id']}", json={"title": "Renamed"})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["title"] == "Renamed"
+        assert data["description"] == "Desc"
+        assert data["status"] == "in_progress"
+        assert data["due_date"] == DUE
+        assert data["planned_date"] == DAY
+
+    @pytest.mark.asyncio
+    async def test_clearing_planned_date_writes_rescheduled_with_null(self, client: AsyncClient) -> None:
+        task = await _create_full_task(client)
+
+        response = await client.patch(f"/tasks/{task['id']}", json={"planned_date": None})
+
+        assert response.status_code == 200
+        events = await _events(client, task["id"])
+        assert [e["event_type"] for e in events] == ["created", "rescheduled"]
+        assert events[1]["payload"] == {"old_planned_date": DAY, "new_planned_date": None}
+
+    @pytest.mark.asyncio
+    async def test_same_planned_date_writes_no_event(self, client: AsyncClient) -> None:
+        task = await _create_full_task(client)
+
+        response = await client.patch(f"/tasks/{task['id']}", json={"planned_date": DAY})
+
+        assert response.status_code == 200
+        assert [e["event_type"] for e in await _events(client, task["id"])] == ["created"]
+
+    @pytest.mark.asyncio
+    async def test_same_day_different_time_writes_rescheduled(self, client: AsyncClient) -> None:
+        task = await _create_full_task(client)
+
+        response = await client.patch(
+            f"/tasks/{task['id']}", json={"planned_date": "2026-12-15T13:30:00"}
+        )
+
+        assert response.status_code == 200
+        events = await _events(client, task["id"])
+        assert [e["event_type"] for e in events] == ["created", "rescheduled"]
+        assert events[1]["payload"] == {
+            "old_planned_date": DAY,
+            "new_planned_date": "2026-12-15T13:30:00",
+        }
+
+    @pytest.mark.asyncio
+    async def test_same_status_writes_no_event(self, client: AsyncClient) -> None:
+        task = await _create_full_task(client)
+
+        response = await client.patch(f"/tasks/{task['id']}", json={"status": "in_progress"})
+
+        assert response.status_code == 200
+        assert [e["event_type"] for e in await _events(client, task["id"])] == ["created"]
+
+    @pytest.mark.asyncio
+    async def test_resending_all_current_values_writes_no_event(self, client: AsyncClient) -> None:
+        task = await _create_full_task(client)
+
+        response = await client.patch(
+            f"/tasks/{task['id']}",
+            json={
+                "title": "Full",
+                "description": "Desc",
+                "status": "in_progress",
+                "due_date": DUE,
+                "planned_date": DAY,
+            },
+        )
+
+        assert response.status_code == 200
+        assert [e["event_type"] for e in await _events(client, task["id"])] == ["created"]
+
+    @pytest.mark.asyncio
+    async def test_empty_body_changes_nothing(self, client: AsyncClient) -> None:
+        task = await _create_full_task(client)
+
+        response = await client.patch(f"/tasks/{task['id']}", json={})
+
+        assert response.status_code == 200
+        data = response.json()
+        for key in ("title", "description", "status", "due_date", "planned_date"):
+            assert data[key] == task[key]
+        assert [e["event_type"] for e in await _events(client, task["id"])] == ["created"]
+
+    @pytest.mark.asyncio
+    async def test_clearing_due_date_writes_edited_with_changed_field(self, client: AsyncClient) -> None:
+        task = await _create_full_task(client)
+
+        await client.patch(
+            f"/tasks/{task['id']}", json={"due_date": None, "title": "Full", "status": "in_progress"}
+        )
+
+        events = await _events(client, task["id"])
+        assert [e["event_type"] for e in events] == ["created", "edited"]
+        assert events[1]["payload"] == {"fields_changed": ["due_date"]}
+
+    @pytest.mark.asyncio
+    async def test_status_only_patch_still_works(self, client: AsyncClient) -> None:
+        task = await _create_full_task(client)
+
+        response = await client.patch(f"/tasks/{task['id']}", json={"status": "done"})
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "done"
+        assert response.json()["planned_date"] == DAY
+        events = await _events(client, task["id"])
+        assert [e["event_type"] for e in events] == ["created", "status_changed"]
+        assert events[1]["payload"] == {"old_status": "in_progress", "new_status": "done"}
+
+    @pytest.mark.asyncio
+    async def test_planned_date_only_patch_still_works(self, client: AsyncClient) -> None:
+        task = await _create_full_task(client)
+
+        response = await client.patch(f"/tasks/{task['id']}", json={"planned_date": OTHER_DAY})
+
+        assert response.status_code == 200
+        assert response.json()["planned_date"] == OTHER_DAY
+        assert response.json()["status"] == "in_progress"
+        events = await _events(client, task["id"])
+        assert [e["event_type"] for e in events] == ["created", "rescheduled"]
+        assert events[1]["payload"] == {"old_planned_date": DAY, "new_planned_date": OTHER_DAY}
