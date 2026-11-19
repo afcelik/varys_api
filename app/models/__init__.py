@@ -2,6 +2,7 @@
 
 from app.models.base import Base, TimestampMixin
 from app.models.daily_plan import DailyPlan
+from app.models.note import Note, Tag, note_tags
 from app.models.project import Project, ProjectEvent, ProjectEventType, ProjectStatus
 from app.models.routine import RecurrenceType, Routine, RoutineLog
 from app.models.task import Task, TaskEvent, TaskEventType, TaskStatus
@@ -21,4 +22,7 @@ __all__ = [
     "ProjectStatus",
     "ProjectEvent",
     "ProjectEventType",
+    "Note",
+    "Tag",
+    "note_tags",
 ]
