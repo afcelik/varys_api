@@ -6,6 +6,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.project import Project
 from app.models.task import Task, TaskStatus, TaskEvent, TaskEventType
 from app.schemas.task import TaskCreate, TaskUpdate
 
@@ -24,6 +25,7 @@ class TaskRepository:
             status=TaskStatus(task_create.status) if task_create.status else TaskStatus.TODO,
             due_date=task_create.due_date,
             planned_date=task_create.planned_date,
+            project_id=task_create.project_id,
         )
         self.db.add(task)
         self.db.commit()
@@ -37,13 +39,20 @@ class TaskRepository:
             stmt = stmt.where(Task.deleted_at.is_(None))
         return self.db.scalars(stmt).first()
 
-    def get_all(self, status: Optional[TaskStatus] = None, include_deleted: bool = False) -> list[Task]:
-        """Get all tasks, optionally filtered by status."""
+    def get_all(
+        self,
+        status: Optional[TaskStatus] = None,
+        include_deleted: bool = False,
+        project_id: int | None = None,
+    ) -> list[Task]:
+        """Get all tasks, optionally filtered by status and/or project."""
         stmt = select(Task)
         if not include_deleted:
             stmt = stmt.where(Task.deleted_at.is_(None))
         if status:
             stmt = stmt.where(Task.status == status)
+        if project_id is not None:
+            stmt = stmt.where(Task.project_id == project_id)
         stmt = stmt.order_by(Task.created_at.desc())
         return list(self.db.scalars(stmt).all())
 
@@ -56,6 +65,11 @@ class TaskRepository:
         self.db.commit()
         self.db.refresh(task)
         return task
+
+    def project_exists(self, project_id: int) -> bool:
+        """Whether a non-deleted project with this id exists."""
+        stmt = select(Project.id).where(Project.id == project_id, Project.deleted_at.is_(None))
+        return self.db.scalar(stmt) is not None
 
     def soft_delete(self, task: Task) -> None:
         """Soft delete a task by setting deleted_at timestamp."""

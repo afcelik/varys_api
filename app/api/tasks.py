@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.repositories.task import TaskRepository
 from app.schemas.task import TaskCreate, TaskRead, TaskUpdate, TaskEventRead
+from app.services.project import ProjectNotFoundError
 from app.services.task import TaskNotFoundError, TaskService
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -27,8 +28,11 @@ def create_task(
     task_create: TaskCreate,
     service: TaskService = Depends(get_task_service),
 ) -> TaskRead:
-    """Create a new task."""
-    return service.create_task(task_create)
+    """Create a new task. A missing or deleted project_id is 404."""
+    try:
+        return service.create_task(task_create)
+    except ProjectNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
 @router.get(
@@ -38,10 +42,11 @@ def create_task(
 )
 def get_tasks(
     status: str | None = Query(None, description="Filter by status (todo, in_progress, done)"),
+    project_id: int | None = Query(None, description="Filter by linked project"),
     service: TaskService = Depends(get_task_service),
 ) -> list[TaskRead]:
-    """Get all tasks, optionally filtered by status."""
-    return service.get_tasks(status)
+    """Get all tasks, optionally filtered by status and/or project."""
+    return service.get_tasks(status, project_id)
 
 
 @router.get(
@@ -70,10 +75,10 @@ def update_task(
     task_update: TaskUpdate,
     service: TaskService = Depends(get_task_service),
 ) -> TaskRead:
-    """Update an existing task."""
+    """Update an existing task. A missing or deleted project_id is 404."""
     try:
         return service.update_task(task_id, task_update)
-    except TaskNotFoundError as e:
+    except (TaskNotFoundError, ProjectNotFoundError) as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 

@@ -5,10 +5,11 @@ from typing import Optional
 from app.models.task import Task, TaskStatus, TaskEventType
 from app.repositories.task import TaskRepository
 from app.schemas.task import TaskCreate, TaskRead, TaskUpdate, TaskEventRead
+from app.services.project import ProjectNotFoundError
 
 
 # Fields whose change produces an EDITED event (status/planned_date have their own events).
-_EDIT_FIELDS = ("title", "description", "due_date")
+_EDIT_FIELDS = ("title", "description", "due_date", "project_id")
 
 
 class TaskNotFoundError(Exception):
@@ -23,8 +24,14 @@ class TaskService:
     def __init__(self, repository: TaskRepository):
         self.repository = repository
 
+    def _ensure_project(self, project_id: int | None) -> None:
+        """A linked project must exist and not be deleted (any status, incl. completed)."""
+        if project_id is not None and not self.repository.project_exists(project_id):
+            raise ProjectNotFoundError(f"Project with id {project_id} not found")
+
     def create_task(self, task_create: TaskCreate) -> TaskRead:
         """Create a new task."""
+        self._ensure_project(task_create.project_id)
         task = self.repository.create(task_create)
         # Create event for task creation
         self.repository.create_event(
@@ -41,10 +48,12 @@ class TaskService:
             raise TaskNotFoundError(f"Task with id {task_id} not found")
         return TaskRead.model_validate(task)
 
-    def get_tasks(self, status: Optional[str] = None) -> list[TaskRead]:
-        """Get all tasks, optionally filtered by status."""
+    def get_tasks(
+        self, status: Optional[str] = None, project_id: int | None = None
+    ) -> list[TaskRead]:
+        """Get all tasks, optionally filtered by status and/or project."""
         task_status = TaskStatus(status) if status else None
-        tasks = self.repository.get_all(task_status)
+        tasks = self.repository.get_all(task_status, project_id=project_id)
         return [TaskRead.model_validate(task) for task in tasks]
 
     def update_task(self, task_id: int, task_update: TaskUpdate) -> TaskRead:
@@ -54,6 +63,8 @@ class TaskService:
             raise TaskNotFoundError(f"Task with id {task_id} not found")
 
         changes = task_update.changes()
+        if "project_id" in changes:
+            self._ensure_project(changes["project_id"])
         old = {name: getattr(task, name) for name in changes}
         changed = [
             name
@@ -84,10 +95,14 @@ class TaskService:
 
         edited = [name for name in changed if name in _EDIT_FIELDS]
         if edited:
+            payload = {"fields_changed": changed}
+            if "project_id" in changed:
+                payload["old_project_id"] = old["project_id"]
+                payload["new_project_id"] = changes["project_id"]
             self.repository.create_event(
                 task_id=task_id,
                 event_type=TaskEventType.EDITED,
-                payload={"fields_changed": changed},
+                payload=payload,
             )
 
         return TaskRead.model_validate(updated_task)

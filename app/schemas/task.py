@@ -16,6 +16,7 @@ class TaskBase(BaseModel):
     status: Optional[str] = Field(None, description="Task status")
     due_date: Optional[datetime] = Field(None, description="Task due date")
     planned_date: Optional[datetime] = Field(None, description="Task planned date")
+    project_id: int | None = Field(None, description="Linked project (must exist, not deleted)")
 
     @field_validator("status")
     @classmethod
@@ -39,7 +40,7 @@ class TaskUpdate(BaseModel):
 
     Field status is explicit via ``model_fields_set``:
     - not sent  -> unchanged
-    - sent null -> cleared (description/due_date/planned_date; title/status -> 422)
+    - sent null -> cleared (description/due_date/planned_date/project_id; title/status -> 422)
     - sent value -> set
     """
 
@@ -50,6 +51,7 @@ class TaskUpdate(BaseModel):
     status: Optional[str] = Field(None)
     due_date: Optional[datetime] = Field(None)
     planned_date: Optional[datetime] = Field(None)
+    project_id: int | None = Field(None)
 
     @field_validator("status")
     @classmethod

@@ -47,6 +47,10 @@ class Task(Base, TimestampMixin):
     due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     planned_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Soft-deleting a project clears this in the service; SET NULL only covers hard deletes.
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     # Relationship to events
     events: Mapped[list["TaskEvent"]] = relationship(

@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite:///./varys.db"
 
+    # Projects: how many may be ACTIVE at once (on_hold/someday/completed don't count)
+    MAX_ACTIVE_PROJECTS: int = Field(3, ge=1)
+
     # AI Provider (NVIDIA)
     NVIDIA_API_KEY: str | None = None
     NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
