@@ -9,7 +9,7 @@ from app.services.project import ProjectNotFoundError
 
 
 # Fields whose change produces an EDITED event (status/planned_date have their own events).
-_EDIT_FIELDS = ("title", "description", "due_date", "project_id")
+_EDIT_FIELDS = ("title", "description", "due_date", "project_id", "is_important", "is_urgent")
 
 
 class TaskNotFoundError(Exception):

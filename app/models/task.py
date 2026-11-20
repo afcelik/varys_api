@@ -4,7 +4,7 @@ import enum
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Enum, ForeignKey, String, DateTime, JSON
+from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -47,6 +47,13 @@ class Task(Base, TimestampMixin):
     due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     planned_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Eisenhower matrix flags; server_default keeps existing rows valid (false/false).
+    is_important: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("0")
+    )
+    is_urgent: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("0")
+    )
     # Soft-deleting a project clears this in the service; SET NULL only covers hard deletes.
     project_id: Mapped[int | None] = mapped_column(
         ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True

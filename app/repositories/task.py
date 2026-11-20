@@ -26,6 +26,8 @@ class TaskRepository:
             due_date=task_create.due_date,
             planned_date=task_create.planned_date,
             project_id=task_create.project_id,
+            is_important=task_create.is_important,
+            is_urgent=task_create.is_urgent,
         )
         self.db.add(task)
         self.db.commit()
