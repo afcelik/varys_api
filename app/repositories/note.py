@@ -1,6 +1,6 @@
 """Note repository - data access layer for notes and tags."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import func, select
@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.sql import Select
 
-from app.models.note import Note, Tag, note_tags
+from app.models.note import Note, NoteOfDay, Tag, note_tags
 
 
 class NoteRepository:
@@ -113,6 +113,41 @@ class NoteRepository:
     def soft_delete(self, note: Note) -> None:
         """Soft delete; note_tags links and tags are kept."""
         note.deleted_at = datetime.now(UTC)
+        self.db.commit()
+
+    # --- note of the day -------------------------------------------------------
+
+    def get_day_entry(self, day: date) -> NoteOfDay | None:
+        return self.db.scalars(select(NoteOfDay).where(NoteOfDay.day == day)).first()
+
+    def max_cycle(self) -> int | None:
+        return self.db.scalar(select(func.max(NoteOfDay.cycle)))
+
+    def shown_note_ids(self, cycle: int) -> set[int]:
+        """Note ids of every entry in ``cycle``, including notes deleted since."""
+        stmt = select(NoteOfDay.note_id).where(NoteOfDay.cycle == cycle)
+        return set(self.db.scalars(stmt))
+
+    def active_note_ids(self) -> list[int]:
+        stmt = select(Note.id).where(Note.deleted_at.is_(None)).order_by(Note.id)
+        return list(self.db.scalars(stmt))
+
+    def insert_day_entry(self, day: date, note_id: int, cycle: int) -> bool:
+        """Insert the entry for ``day``; False if another writer stored that day first.
+
+        The INSERT runs in a SAVEPOINT so a UNIQUE(day) violation only rolls back this row.
+        """
+        try:
+            with self.db.begin_nested():
+                self.db.add(NoteOfDay(day=day, note_id=note_id, cycle=cycle))
+        except IntegrityError:
+            return False
+        self.db.commit()
+        return True
+
+    def update_day_entry(self, entry: NoteOfDay, note_id: int, cycle: int) -> None:
+        entry.note_id = note_id
+        entry.cycle = cycle
         self.db.commit()
 
     def _reload(self, note_id: int) -> Note:

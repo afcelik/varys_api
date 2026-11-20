@@ -1,10 +1,12 @@
-"""Note, tag and note-tag link models."""
+"""Note, tag, note-tag link and note-of-the-day models."""
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -13,6 +15,7 @@ from sqlalchemy import (
     Table,
     Text,
     false,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -53,3 +56,24 @@ class Note(Base, TimestampMixin):
     # lazy="raise": tags must be loaded explicitly (selectinload), so a hidden
     # per-note lazy load (N+1) fails loudly instead of silently.
     tags: Mapped[list[Tag]] = relationship(secondary=note_tags, lazy="raise")
+
+
+class NoteOfDay(Base):
+    """The note shown on a calendar day; one row per day, written once and then reused.
+
+    ``cycle`` numbers the rounds: within a cycle every note is shown at most once. A
+    physical note delete cascades the row; a soft delete keeps it (counts as shown).
+    """
+
+    __tablename__ = "note_of_day"
+    __table_args__ = (CheckConstraint("cycle >= 1", name="ck_note_of_day_cycle_positive"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    day: Mapped[date] = mapped_column(Date, unique=True, nullable=False)
+    note_id: Mapped[int] = mapped_column(
+        ForeignKey("notes.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    cycle: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

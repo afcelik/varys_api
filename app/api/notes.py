@@ -64,6 +64,30 @@ def note_of_the_day(
     return service.get_note_of_the_day(day)
 
 
+# Declared before /{note_id} so the literal "of-day" segment is matched first.
+@router.post(
+    "/of-day",
+    response_model=NoteRead | None,
+    summary="Note of the day: stored per day, each note once per cycle (null if no notes)",
+)
+def ensure_note_of_day(
+    service: ServiceDep,
+    day: Annotated[
+        date,
+        Query(
+            ge=MIN_DAY,
+            le=MAX_DAY,
+            description="Plain calendar date YYYY-MM-DD (2000-01-01..2100-12-31)",
+        ),
+    ],
+) -> NoteRead | None:
+    """POST because the first call for a day stores the pick; later calls only read it.
+
+    The client supplies the day; the server never computes "today".
+    """
+    return service.ensure_note_of_day(day)
+
+
 @router.get("/{note_id}", response_model=NoteRead, summary="Get a note")
 def get_note(note_id: int, service: ServiceDep) -> NoteRead:
     try:

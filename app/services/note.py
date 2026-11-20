@@ -5,7 +5,11 @@ from datetime import date
 from app.models.note import Note
 from app.repositories.note import NoteRepository
 from app.schemas.note import NoteCreate, NoteRead, NoteUpdate, TagRead
+from app.services.note_of_day import pick_note_of_day
 from app.services.tag_normalization import normalize_tag
+
+# Sentinel: another writer stored the same day first; resolve again from the stored row.
+_RACE_LOST = object()
 
 
 class NoteNotFoundError(Exception):
@@ -67,6 +71,47 @@ class NoteService:
         if n == 0:
             return None
         note = self.repository.get_nth_by_id(day.toordinal() % n)
+        return to_read(note) if note is not None else None
+
+    def ensure_note_of_day(self, day: date) -> NoteRead | None:
+        """The stored note for a client-supplied day, picking and storing one if needed.
+
+        - Entry exists and its note is not deleted -> that note, no write.
+        - Entry exists but its note was soft-deleted -> re-pick within the entry's cycle
+          and update the entry.
+        - No entry -> pick within the latest cycle and insert.
+        A cycle shows each note at most once (deleted notes stay "shown"); when no note is
+        left, a new cycle starts with every non-deleted note. No notes -> None, no write.
+        Any day (past/future) follows the same rule; the server never computes "today".
+        A concurrent insert of the same day (UNIQUE) is resolved by reading the stored row.
+        """
+        result = self._resolve_note_of_day(day)
+        if result is _RACE_LOST:
+            result = self._resolve_note_of_day(day)
+        return None if result is _RACE_LOST else result
+
+    def _resolve_note_of_day(self, day: date) -> NoteRead | None | object:
+        repo = self.repository
+        entry = repo.get_day_entry(day)
+        if entry is not None:
+            note = repo.get_by_id(entry.note_id)
+            if note is not None:
+                return to_read(note)
+        active = repo.active_note_ids()
+        if not active:
+            return None
+        cycle = entry.cycle if entry is not None else (repo.max_cycle() or 1)
+        shown = repo.shown_note_ids(cycle)
+        candidates = [i for i in active if i not in shown]
+        if not candidates:
+            cycle = (repo.max_cycle() or cycle) + 1
+            candidates = active
+        note_id = pick_note_of_day(day, candidates)
+        if entry is not None:
+            repo.update_day_entry(entry, note_id, cycle)
+        elif not repo.insert_day_entry(day, note_id, cycle):
+            return _RACE_LOST
+        note = repo.get_by_id(note_id)
         return to_read(note) if note is not None else None
 
     def update_note(self, note_id: int, update: NoteUpdate) -> NoteRead:
