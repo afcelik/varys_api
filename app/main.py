@@ -12,6 +12,7 @@ from app.api.notes import router as notes_router
 from app.api.notes import tags_router
 from app.api.projects import router as projects_router
 from app.api.routines import router as routines_router
+from app.api.schedule import router as schedule_router
 from app.api.tasks import router as tasks_router
 from app.core.auth import verify_token
 from app.core.config import settings
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(tasks_router, dependencies=[Depends(verify_token)])
     app.include_router(daily_plans_router, dependencies=[Depends(verify_token)])
     app.include_router(routines_router, dependencies=[Depends(verify_token)])
+    app.include_router(schedule_router, dependencies=[Depends(verify_token)])
     app.include_router(projects_router, dependencies=[Depends(verify_token)])
     app.include_router(notes_router, dependencies=[Depends(verify_token)])
     app.include_router(tags_router, dependencies=[Depends(verify_token)])
