@@ -662,3 +662,83 @@ class TestRoutinesApiAuthAndReadOnly:
         db_session.expire_all()
         assert db_session.scalars(select(Routine.updated_at)).all() == before
         assert count(db_session, RoutineLog) == 1
+
+
+class TestRoutinesApiOnce:
+    async def test_create_once(self, client) -> None:
+        data = await post_routine(client, recurrence_type="once", start_date="2024-01-10")
+        assert data["recurrence_type"] == "once"
+        assert data["start_date"] == "2024-01-10"
+        assert data["days_of_week"] is None
+        assert data["day_of_month"] is None
+        assert data["interval_days"] is None
+
+    @pytest.mark.parametrize(
+        ("extra", "field"),
+        [
+            ({"days_of_week": [0]}, "days_of_week"),
+            ({"day_of_month": 5}, "day_of_month"),
+            ({"interval_days": 2}, "interval_days"),
+        ],
+    )
+    async def test_create_once_with_unrelated_field_422(self, client, db_session, extra, field) -> None:
+        body = {"title": "x", "recurrence_type": "once", "start_date": "2024-01-10", **extra}
+        response = await client.post("/routines", json=body)
+        assert response.status_code == 422
+        assert f"{field} must be null for recurrence_type 'once'" in response.text
+        assert count(db_session, Routine) == 0
+
+    async def test_day_lists_once_only_on_its_day(self, client) -> None:
+        r = await post_routine(client, title="tek", recurrence_type="once", start_date="2024-01-10")
+        for day, expected in (("2024-01-09", []), ("2024-01-10", [r["id"]]), ("2024-01-11", [])):
+            items = (await client.get(f"/routines/day/{day}")).json()
+            assert [i["id"] for i in items] == expected, day
+
+    async def test_once_streak_zero_then_one(self, client, db_session) -> None:
+        r = await post_routine(client, recurrence_type="once", start_date="2024-01-10")
+        [item] = (await client.get("/routines/day/2024-01-10")).json()
+        assert (item["completed"], item["current_streak"], item["longest_streak"]) == (False, 0, 0)
+
+        assert (await client.put(f"/routines/{r['id']}/logs/2024-01-10")).status_code == 201
+        [item] = (await client.get("/routines/day/2024-01-10")).json()
+        assert (item["completed"], item["current_streak"], item["longest_streak"]) == (True, 1, 1)
+
+        other = await client.put(f"/routines/{r['id']}/logs/2024-01-11")
+        assert other.status_code == 422
+        assert "not scheduled" in other.json()["detail"]
+        assert count(db_session, RoutineLog) == 1
+
+    async def test_patch_weekly_to_once_needs_explicit_null(self, client) -> None:
+        r = await post_routine(client, recurrence_type="weekly", days_of_week=[0, 2])
+        response = await client.patch(
+            f"/routines/{r['id']}", json={"recurrence_type": "once", "start_date": "2024-01-10"}
+        )
+        assert response.status_code == 422
+        assert "days_of_week must be null for recurrence_type 'once'" in response.json()["detail"]
+        stored = (await client.get(f"/routines/{r['id']}")).json()
+        assert (stored["recurrence_type"], stored["days_of_week"]) == ("weekly", [0, 2])
+        assert stored["start_date"] == "2024-01-01"
+
+        response = await client.patch(
+            f"/routines/{r['id']}",
+            json={"recurrence_type": "once", "start_date": "2024-01-10", "days_of_week": None},
+        )
+        assert response.status_code == 200
+        assert response.json()["recurrence_type"] == "once"
+        assert response.json()["days_of_week"] is None
+        assert [i["id"] for i in (await client.get("/routines/day/2024-01-10")).json()] == [r["id"]]
+        assert (await client.get("/routines/day/2024-01-15")).json() == []  # Monday
+
+    async def test_patch_once_to_weekly_requires_days(self, client) -> None:
+        r = await post_routine(client, recurrence_type="once", start_date="2024-01-01")
+        response = await client.patch(f"/routines/{r['id']}", json={"recurrence_type": "weekly"})
+        assert response.status_code == 422
+        assert "days_of_week" in response.json()["detail"]
+        assert (await client.get(f"/routines/{r['id']}")).json()["recurrence_type"] == "once"
+
+        response = await client.patch(
+            f"/routines/{r['id']}", json={"recurrence_type": "weekly", "days_of_week": [0]}
+        )
+        assert response.status_code == 200
+        assert (response.json()["recurrence_type"], response.json()["days_of_week"]) == ("weekly", [0])
+        assert [i["id"] for i in (await client.get("/routines/day/2024-01-08")).json()] == [r["id"]]

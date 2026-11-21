@@ -26,6 +26,7 @@ class RecurrenceType(enum.StrEnum):
     WEEKLY = "weekly"
     MONTHLY = "monthly"
     INTERVAL = "interval"
+    ONCE = "once"
 
 
 class Routine(Base, TimestampMixin):

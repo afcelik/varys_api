@@ -328,3 +328,90 @@ class TestNoSystemClock:
         assert longest_streak(rule, self.LOGS) == 3
         assert len(scheduled_dates(rule, d("2024-01-01"), d("2024-01-31"))) == 31
         assert not hasattr(recurrence, "datetime")
+
+
+# --- once (one-off) -----------------------------------------------------------------------
+
+
+def once(start: date = date(2024, 1, 10)) -> Rule:
+    return Rule(start, "once")
+
+
+class TestOnce:
+    def test_validate_all_null_passes(self) -> None:
+        assert validate_recurrence("once", None, None, None) is None
+
+    @pytest.mark.parametrize(
+        ("args", "message"),
+        [
+            (("once", [0], None, None), "days_of_week must be null for recurrence_type 'once'"),
+            (("once", None, 5, None), "day_of_month must be null for recurrence_type 'once'"),
+            (("once", None, None, 1), "interval_days must be null for recurrence_type 'once'"),
+        ],
+    )
+    def test_validate_unrelated_field_raises(self, args, message) -> None:
+        with pytest.raises(RecurrenceError, match=message):
+            validate_recurrence(*args)
+
+    def test_due_only_on_start_date(self) -> None:
+        rule = once(d("2024-01-10"))
+        assert is_due(rule, d("2024-01-10")) is True
+        assert is_due(rule, d("2024-01-09")) is False
+        assert is_due(rule, d("2024-01-11")) is False
+
+    def test_exactly_one_due_day_in_long_range(self) -> None:
+        rule = once(d("2024-03-15"))
+        due = [
+            day
+            for day in (d("2024-01-01") + timedelta(days=n) for n in range(400))
+            if is_due(rule, day)
+        ]
+        assert due == [d("2024-03-15")]
+
+    def test_month_boundary(self) -> None:
+        rule = once(d("2024-01-31"))
+        assert is_due(rule, d("2024-01-31")) is True
+        assert is_due(rule, d("2024-02-01")) is False
+        assert is_due(rule, d("2024-01-30")) is False
+
+    def test_year_boundary(self) -> None:
+        rule = once(d("2024-12-31"))
+        assert is_due(rule, d("2024-12-31")) is True
+        assert is_due(rule, d("2025-01-01")) is False
+        assert is_due(rule, d("2024-12-30")) is False
+
+    def test_interval_days_none_does_not_crash(self) -> None:
+        # The once branch runs before the interval branch, so a None interval_days is
+        # never used as a divisor (no ZeroDivisionError / TypeError on any day).
+        rule = Rule(d("2024-01-10"), "once", interval_days=None)
+        for n in range(-3, 40):
+            is_due(rule, d("2024-01-10") + timedelta(days=n))
+        assert scheduled_dates(rule, d("2024-01-01"), d("2024-02-28")) == [d("2024-01-10")]
+        assert current_streak(rule, d("2024-02-28"), {d("2024-01-10")}) == 1
+        assert longest_streak(rule, {d("2024-01-10")}) == 1
+
+    def test_scheduled_dates_is_start_only(self) -> None:
+        rule = once(d("2024-06-01"))
+        assert scheduled_dates(rule, d("2024-01-01"), d("2024-12-31")) == [d("2024-06-01")]
+        assert scheduled_dates(rule, d("2024-06-02"), d("2024-12-31")) == []
+
+    def test_streak_completed_is_one(self) -> None:
+        rule = once(d("2024-01-10"))
+        assert current_streak(rule, d("2024-01-10"), {d("2024-01-10")}) == 1
+        assert longest_streak(rule, {d("2024-01-10")}) == 1
+
+    def test_streak_not_completed_is_zero(self) -> None:
+        rule = once(d("2024-01-10"))
+        assert current_streak(rule, d("2024-01-10"), set()) == 0
+        assert longest_streak(rule, set()) == 0
+
+    def test_streak_reference_after_start(self) -> None:
+        rule = once(d("2024-01-10"))
+        assert current_streak(rule, d("2024-01-15"), {d("2024-01-10")}) == 1
+        assert current_streak(rule, d("2024-01-15"), set()) == 0
+
+    def test_streak_ignores_logs_after_start(self) -> None:
+        rule = once(d("2024-01-10"))
+        logs = {d("2024-01-10"), d("2024-01-12")}
+        assert current_streak(rule, d("2024-01-12"), logs) == 1
+        assert longest_streak(rule, logs) == 1

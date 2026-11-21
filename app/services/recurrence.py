@@ -45,6 +45,7 @@ def validate_recurrence(
     monthly  -> day_of_month (1..31), the others null
     interval -> interval_days (>= 1), the others null
     daily    -> all three null
+    once     -> all three null
     """
     rtype = RecurrenceType(recurrence_type)
     required = {
@@ -52,6 +53,7 @@ def validate_recurrence(
         RecurrenceType.WEEKLY: "days_of_week",
         RecurrenceType.MONTHLY: "day_of_month",
         RecurrenceType.INTERVAL: "interval_days",
+        RecurrenceType.ONCE: None,
     }[rtype]
     values = {
         "days_of_week": days_of_week,
@@ -86,7 +88,8 @@ def is_due(rule: RecurrenceRule, day: date) -> bool:
 
     Never due before start_date. Monthly routines whose day_of_month does not
     exist in a month (e.g. 31 in April, 30/31 in February) are due on that
-    month's last day, so they happen exactly once every month.
+    month's last day, so they happen exactly once every month. Once routines are
+    due only on start_date.
     """
     if day < rule.start_date:
         return False
@@ -99,6 +102,8 @@ def is_due(rule: RecurrenceRule, day: date) -> bool:
     if rtype is RecurrenceType.MONTHLY:
         last_day = calendar.monthrange(day.year, day.month)[1]
         return day.day == min(rule.day_of_month, last_day)
+    if rtype is RecurrenceType.ONCE:
+        return day == rule.start_date
     # INTERVAL
     return (day - rule.start_date).days % rule.interval_days == 0
 

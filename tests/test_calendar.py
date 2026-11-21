@@ -505,3 +505,25 @@ class TestMonthSummary:
         assert _nonzero(summary, "schedule_count") == {
             date(2024, 2, d): 1 for d in (1, 8, 15, 22, 29)
         }
+
+
+# --- once (one-off) -----------------------------------------------------------------------
+
+
+class TestOnceCounts:
+    async def test_once_routine_and_block_count_only_their_day(self, client) -> None:
+        await post_routine(client, recurrence_type="once", start_date="2024-04-10")
+        await post_block(client, recurrence_type="once", start_date="2024-04-17")
+        data = await get_month(client, 2024, 4)
+        assert counts(data, "routine_count") == {"2024-04-10": 1}
+        assert counts(data, "schedule_count") == {"2024-04-17": 1}
+
+    async def test_once_in_other_month_counts_nothing(self, client) -> None:
+        await post_routine(client, recurrence_type="once", start_date="2024-03-31")
+        await post_block(client, recurrence_type="once", start_date="2024-03-31")
+        april = await get_month(client, 2024, 4)
+        assert counts(april, "routine_count") == {}
+        assert counts(april, "schedule_count") == {}
+        march = await get_month(client, 2024, 3)
+        assert counts(march, "routine_count") == {"2024-03-31": 1}
+        assert counts(march, "schedule_count") == {"2024-03-31": 1}

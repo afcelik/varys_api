@@ -647,3 +647,64 @@ class TestReadsAndAuth:
         response = await client_no_auth.request(method, url, **kwargs)
         assert response.status_code == 401
         assert db_session.scalars(select(ScheduleBlock)).all() == []
+
+
+# --- once (one-off) -----------------------------------------------------------------------
+
+
+class TestOnce:
+    async def test_create_once(self, client) -> None:
+        block = await post_block(client, recurrence_type="once", start_date="2024-01-10")
+        assert block["recurrence_type"] == "once"
+        assert (block["days_of_week"], block["day_of_month"], block["interval_days"]) == (
+            None, None, None,
+        )
+
+    async def test_create_once_with_unrelated_field_422(self, client, db_session) -> None:
+        response = await client.post(
+            "/schedule",
+            json={"title": "x", "start_time": "07:00", "end_time": "08:00",
+                  "recurrence_type": "once", "start_date": MON, "interval_days": 2},
+        )
+        assert response.status_code == 422
+        assert "interval_days must be null for recurrence_type 'once'" in _messages(response)
+        assert db_session.scalars(select(ScheduleBlock)).all() == []
+
+    async def test_day_only_on_start_date(self, client) -> None:
+        await post_block(client, title="tek", recurrence_type="once", start_date="2024-01-10")
+        assert await day_titles(client, "2024-01-09") == []
+        assert await day_titles(client, "2024-01-10") == ["tek"]
+        assert await day_titles(client, "2024-01-11") == []
+        assert await day_titles(client, "2024-02-10") == []
+
+    async def test_patch_monthly_to_once_needs_explicit_null(self, client) -> None:
+        block = await post_block(client, recurrence_type="monthly", day_of_month=10)
+        missing = await client.patch(f"/schedule/{block['id']}", json={"recurrence_type": "once"})
+        assert missing.status_code == 422
+        assert "day_of_month must be null for recurrence_type 'once'" in _messages(missing)
+        stored = (await client.get(f"/schedule/{block['id']}")).json()
+        assert (stored["recurrence_type"], stored["day_of_month"]) == ("monthly", 10)
+
+        ok = await client.patch(
+            f"/schedule/{block['id']}",
+            json={"recurrence_type": "once", "day_of_month": None},
+        )
+        assert ok.status_code == 200
+        assert (ok.json()["recurrence_type"], ok.json()["day_of_month"]) == ("once", None)
+        # start_date is immutable for blocks, so the one-off day is the original start_date.
+        assert await day_titles(client, MON) == ["Blok"]
+        assert await day_titles(client, "2024-01-10") == []
+        assert await day_titles(client, "2024-02-10") == []
+
+    async def test_patch_once_to_weekly_requires_days(self, client) -> None:
+        block = await post_block(client, recurrence_type="once", start_date=MON)
+        missing = await client.patch(f"/schedule/{block['id']}", json={"recurrence_type": "weekly"})
+        assert missing.status_code == 422
+        assert "days_of_week" in _messages(missing)
+        assert (await client.get(f"/schedule/{block['id']}")).json()["recurrence_type"] == "once"
+
+        ok = await client.patch(
+            f"/schedule/{block['id']}", json={"recurrence_type": "weekly", "days_of_week": [0]}
+        )
+        assert ok.status_code == 200
+        assert await day_titles(client, "2024-01-08") == ["Blok"]
